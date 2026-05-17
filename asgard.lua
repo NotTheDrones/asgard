@@ -47,6 +47,9 @@ defaults.wincontrol.alt.x = 3840
 defaults.wincontrol.alt.y = 0
 defaults.xivhotbar = {}
 defaults.xivhotbar.enabled = true
+defaults.autologin = {}
+defaults.autologin.enabled = false
+defaults.autologin.delay = 5
 settings = config.load(defaults)
 
 -- Runtime state
@@ -329,10 +332,21 @@ end
 -- Event Handlers
 ------------------------------------------------------------
 
--- Runs on addon load or player login. Initializes player state,
--- moves the game window to the role-configured position if wincontrol is enabled,
--- and deferred-loads any addons that require job data to be present at startup.
+-- Runs on addon load or player login. Automatically presses through login screens if autologin
+-- is enabled, then initializes player state, repositions the window, and deferred-loads addons.
 function loaded()
+    -- Autologin: press through all login screens if not yet in game.
+    -- Checks logged_in before each press so stray keypresses can't fire after login completes.
+    if settings.autologin.enabled and not windower.ffxi.get_info().logged_in then
+        for _ = 1, 4 do
+            coroutine.sleep(settings.autologin.delay)
+            if windower.ffxi.get_info().logged_in then break end
+            windower.send_command('setkey enter down')
+            coroutine.sleep(0.3)
+            windower.send_command('setkey enter up')
+        end
+        return
+    end
     local player = windower.ffxi.get_player()
     if player then
         asgard.player = player
