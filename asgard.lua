@@ -56,6 +56,7 @@ settings = config.load(defaults)
 asgard = {}
 asgard.player = {}
 asgard.follow = false
+asgard.rattack = false
 
 ------------------------------------------------------------
 -- Utilities
@@ -115,6 +116,8 @@ function addon_command(cmd, ...)
         debug()
     elseif cmd == 'eval' or cmd == 'evl' then
         eval(...)
+    elseif cmd == 'rattack' or cmd == 'rat' then
+        rattack(...)
     else
         ---@diagnostic disable: undefined-field
         windower.add_to_chat(0, ('%s (v%s)'):format(_addon.name:color(5), _addon.version))
@@ -123,6 +126,7 @@ function addon_command(cmd, ...)
         windower.add_to_chat(0, ('    %s - %s'):format(('buffs'):color(50), 'Adjusts status effects on a target (add, remove, toggle, cancel)'))
         windower.add_to_chat(0, ('    %s - %s'):format(('follow'):color(50), 'Follows or stops following the main character (on, off, toggle)'))
         windower.add_to_chat(0, ('    %s - %s'):format(('mount'):color(50), 'Mounts or dismounts by name (on, off, toggle)'))
+        windower.add_to_chat(0, ('    %s - %s'):format(('rattack'):color(50), 'Starts or stops an automatic ranged attack loop (on, off, toggle)'))
         windower.add_to_chat(0, ('    %s - %s'):format(('debug'):color(50), 'Toggles debug mode on/off (default: false)'))
         windower.add_to_chat(0, ('    %s - %s'):format(('eval'):color(50), 'Evaluates a Lua expression in the context of this addon'))
         ---@diagnostic enable: undefined-field
@@ -315,6 +319,28 @@ function debug()
     settings:save()
 end
 
+-- Starts or stops an automatic ranged attack loop that re-triggers /range while the player is engaged.
+-- The loop checks engagement status before each shot so it pauses naturally when combat ends.
+function rattack(mode)
+    local _mode = mode or 'toggle'
+    if L{'on', 'toggle'}:contains(_mode) and not asgard.rattack then
+        asgard.rattack = true
+        if settings.debug then log('Ranged attack loop started.') end
+        while asgard.rattack do
+            if windower.ffxi.get_player().status == 1 then
+                windower.send_command('input /range')
+            end
+            coroutine.sleep(settings.timing)
+        end
+        if settings.debug then log('Ranged attack loop stopped.') end
+    elseif L{'off', 'toggle'}:contains(_mode) and asgard.rattack then
+        asgard.rattack = false
+    elseif not L{'on', 'off', 'toggle'}:contains(_mode) then
+        warning('Rattack mode invalid [on/off/toggle]')
+    end
+    -- If mode is valid but rattack is already in the desired state, do nothing.
+end
+
 -- Evaluates an arbitrary Lua expression in the addon's context. Errors are shown as warnings rather than crashing.
 function eval(...)
     local code = L{...}:concat(' ')
@@ -362,12 +388,13 @@ function loaded()
     end
 end
 
--- Runs on addon unload or player logout. Stops follow if active.
+-- Runs on addon unload or player logout. Stops follow and ranged attack loop if active.
 function unloaded()
     if asgard.follow then
         windower.ffxi.follow() -- Stop following so the character doesn't keep running after the addon is removed.
         asgard.follow = false
     end
+    asgard.rattack = false
 end
 
 -- Runs when the player's status changes. Broadcasts engage/disengage events over IPC if run by the main character.
