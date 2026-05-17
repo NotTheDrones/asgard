@@ -1,0 +1,14 @@
+{
+    "diagnostics": {
+        "globals": [
+            "_addon",
+            "windower",
+            "coroutine",
+            "log",
+            "warning",
+            "L",
+            "T",
+            "S"
+        ]
+    }
+}
