@@ -45,6 +45,8 @@ defaults.wincontrol.alt = {}
 defaults.wincontrol.alt.enabled = false
 defaults.wincontrol.alt.x = 3840
 defaults.wincontrol.alt.y = 0
+defaults.xivhotbar = {}
+defaults.xivhotbar.enabled = true
 settings = config.load(defaults)
 
 -- Runtime state
@@ -70,6 +72,23 @@ end
 -- Returns the player's follow_index if currently following, or nil if not.
 function is_following()
     return windower.ffxi.get_player().follow_index
+end
+
+-- Loads a Windower addon by name after waiting for the local player's job data to become available.
+-- Polls up to 30 times at settings.timing intervals, then warns if job data never arrives.
+function delay_load(name)
+    local attempts = 0
+    while attempts < 30 do
+        local p = windower.ffxi.get_player()
+        if p and p.main_job_id and p.main_job_id > 0 then
+            windower.send_command('lua load ' .. name)
+            if settings.debug then log('delay_load: loaded ' .. name) end
+            return
+        end
+        coroutine.sleep(settings.timing)
+        attempts = attempts + 1
+    end
+    warning('[asgard] delay_load: timed out waiting for job data (' .. name .. ')')
 end
 
 ------------------------------------------------------------
@@ -310,9 +329,9 @@ end
 -- Event Handlers
 ------------------------------------------------------------
 
--- Runs on addon load or player login. Initializes player state.
--- Moves the game window to the role-configured position if wincontrol is enabled for this role.
--- Requires the WinControl plugin and the Send addon for full functionality.
+-- Runs on addon load or player login. Initializes player state,
+-- moves the game window to the role-configured position if wincontrol is enabled,
+-- and deferred-loads any addons that require job data to be present at startup.
 function loaded()
     local player = windower.ffxi.get_player()
     if player then
@@ -323,6 +342,9 @@ function loaded()
             windower.send_command('wincontrol move ' .. wc.x .. ' ' .. wc.y)
             if settings.debug then log('Moved window to ' .. wc.x .. ', ' .. wc.y .. ' (role: ' .. role .. ')') end
         end
+    end
+    if settings.xivhotbar.enabled then
+        delay_load('xivhotbar')
     end
 end
 
